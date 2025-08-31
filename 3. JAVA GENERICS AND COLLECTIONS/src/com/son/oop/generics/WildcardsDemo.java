@@ -4,76 +4,78 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * Wildcards demo showing the PECS rule:
+ * WildcardsDemo — demonstrates PECS and why we use "? extends" vs "? super".
  *
- *  - Producer  => "? extends T"  (you READ/consume values safely; writing/add is not allowed)
- *  - Consumer  => "? super T"    (you WRITE/produce T values safely; reads come out as Object)
+ * PECS rule:
+ *   - Producer Extends: use "? extends T" when the list PRODUCES T-values for you to READ.
+ *     You can iterate and read elements as T (or a supertype), but you cannot safely add elements.
+ *   - Consumer Super:   use "? super T"   when the list CONSUMES T-values that you WRITE.
+ *     You can safely add T (and its subclasses), but reads come out as Object without a cast.
  *
- * Why?
- *  - "? extends Number" can be a List<Integer>, List<Double>, List<BigDecimal>, ...
- *    The only operation type-safe across all of them is reading as Number.
- *  - "? super Integer" can be a List<Integer>, List<Number>, or List<Object>.
- *    You can safely add Integer into any of those (because Integer is-a Number is-a Object).
+ * Invariance reminder:
+ *   List<Integer> is NOT a subtype of List<Number>. Use wildcards to make APIs flexible.
  */
 public class WildcardsDemo {
 
     /**
      * Sums any list whose element type is a subtype of Number.
-     * This uses "? extends Number" because the list is a PRODUCER of values for us to READ.
      *
-     * NOTE:
-     *  - You cannot add to 'numbers' here (except 'null') because the exact element type is unknown.
-     *  - Using doubleValue() may lose precision for BigDecimal/BigInteger, which is acceptable for a demo.
-     *    Use BigDecimal arithmetic in real finance code.
+     * We declare the parameter as List<? extends Number> because:
+     *  - We only need to READ values (treating each as a Number).
+     *  - The actual list could be List<Integer>, List<Double>, List<BigDecimal>, etc.
+     *  - With "? extends", adding elements is not allowed (except null) since the exact subtype is unknown.
+     *
+     * Precision note:
+     *  - Using doubleValue() may lose precision for BigDecimal/BigInteger.
+     *    That’s OK for a demo; for money/precise decimals, use BigDecimal arithmetic.
      *
      * Time complexity: O(n)
      */
     static double sumOf(List<? extends Number> numbers) {
         double total = 0.0;
-        for (Number n : numbers) total += n.doubleValue();
+        for (Number n : numbers) total += n.doubleValue(); // read as Number (safe)
+        // numbers.add(1); // ❌ not allowed: exact element type is unknown (could be Double list)
         return total;
     }
 
     /**
-     * Adds 1..3 into a destination list that can ACCEPT Integers.
-     * This uses "? super Integer" because the list is a CONSUMER that we WRITE into.
+     * Adds integers 1..3 into a destination list that can accept Integer values.
      *
-     * Accepts:
-     *  - List<Integer>
-     *  - List<Number>
-     *  - List<Object>
+     * We declare the parameter as List<? super Integer> because:
+     *  - We need to WRITE Integer values into the list.
+     *  - The destination could be List<Integer>, List<Number>, or List<Object>.
+     *    All of these can accept an Integer (since Integer is-a Number is-a Object).
      *
-     * READS:
-     *  - Reading back from List<? super Integer> yields Object (not Integer) without a cast.
+     * Reads:
+     *  - Reading from List<? super Integer> gives elements typed as Object (not Integer)
+     *    because the list might actually be a List<Object> or List<Number>.
      */
     static void addInts(List<? super Integer> dst) {
-        for (int i = 1; i <= 3; i++) dst.add(i);
-        // Example (reads come out as Object):
-        // Object first = dst.get(0);          // OK
-        // Integer i0 = dst.get(0);            // ❌ Compile error (needs cast)
-        // Integer i0 = (Integer) dst.get(0);  // ✅ With explicit cast
+        for (int i = 1; i <= 3; i++) dst.add(i); // safe to add Integer
+        // Example: reads come out as Object (no type guarantee at compile time)
+        // Object first = dst.get(0);     // OK
+        // Integer firstInt = dst.get(0); // ❌ compile-time error without a cast
+        // Integer firstInt = (Integer) dst.get(0); // ✅ works with explicit cast
     }
 
     public static void main(String[] args) {
-        // -------- CONSUMER (super) demo --------
+        // ----- CONSUMER (super) demo -----
+        // We can pass List<Integer> to addInts, because "? super Integer" allows
+        // List<Integer>, List<Number>, or List<Object>.
         List<Integer> ints = new ArrayList<>();
-        addInts(ints); // "? super Integer" accepts List<Integer> / List<Number> / List<Object>
+        addInts(ints);
 
-        // These also compile:
+        // These would also compile:
         // List<Number> nums = new ArrayList<>();
         // addInts(nums); // OK
         // List<Object> objs = new ArrayList<>();
         // addInts(objs); // OK
 
-        // -------- PRODUCER (extends) demo --------
-        List<Double> doubles = List.of(2.5, 3.5); // immutable list is fine for reading/summing
+        // ----- PRODUCER (extends) demo -----
+        // List.of(...) returns an immutable list; that's fine since sumOf only READS.
+        List<Double> doubles = List.of(2.5, 3.5);
 
-        System.out.println("Sum of all ints:    " + sumOf(ints));
-        System.out.println("Sum of all doubles: " + sumOf(doubles));
-
-        // Key takeaways:
-        // - Use "? extends T" when your method only needs to READ values as T (producer).
-        // - Use "? super T"   when your method needs to WRITE values of type T (consumer).
-        // - This is the PECS rule: Producer Extends, Consumer Super.
+        System.out.println("Sum ints = " + sumOf(ints));       // sums 1+2+3
+        System.out.println("Sum doubles = " + sumOf(doubles)); // sums 2.5+3.5
     }
 }
